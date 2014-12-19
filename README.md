@@ -36,7 +36,7 @@ sample IDs with VirusTotal. These periodic tasks are managed by
 
     30 22 * * * /home/brendan/malrec/scripts/fillqueue.sh
     00,10,20,30,40,50 * * * * /home/brendan/malrec/scripts/genindex.sh
-    00 4 * * * /home/brendan/malrec/scripts/vtlookup.py
+    00 4 * * * /home/brendan/malrec/scripts/vtlookup.py /home/brendan/malrec/conf/malrec.config
     00 4 * * * /home/brendan/malrec/scripts/movies.sh
 
 Samples become available once per day. The `genindex.sh` just builds the
