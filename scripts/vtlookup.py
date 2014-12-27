@@ -24,10 +24,11 @@ cur.execute('SELECT uuid,md5 FROM samples')
 for uuid, md5 in cur.fetchall()[-100:]:
     print uuid, md5
     rep = vt.get(md5)
-    rep.join()
     fname = os.path.join(logdir, 'vt', uuid + '.json')
     f = open(fname, 'w')
-    json.dump(rep._report, f)
+    if rep:
+        rep.join()
+        json.dump(rep._report, f)
     f.close()
 
 conn.close()
