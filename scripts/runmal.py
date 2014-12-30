@@ -147,7 +147,7 @@ panda_args = [panda_exe,
               '-net', 'nic,model=e1000',
               '-net', 'dump,file={0}'.format(pcap_name),
               '-net', 'user',
-              '-vnc', ':{0}'.format(instance),
+              '-vnc', '127.0.0.1:{0}'.format(instance),
               ]
 
 # Start the QEMU process
