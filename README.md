@@ -42,6 +42,17 @@ sample IDs with VirusTotal. These periodic tasks are managed by
 Samples become available once per day. The `genindex.sh` just builds the
 (very ugly) web page every 10 minutes.
 
+GUI Analysis
+------------
+
+In order for the GUI analysis and actuation to work, you will need to
+use this branch of PANDA:
+
+https://github.com/moyix/panda/tree/wip/unsafememaccess
+
+And then symlink the `pmemaddressspace.py` script into Volatility's
+`volatility/plugins/addrspaces` subdirectory.
+
 Disclaimer
 ----------
 

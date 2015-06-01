@@ -6,7 +6,6 @@ import logging
 import os
 import shutil
 import socket
-import string
 import subprocess
 import sys
 import telnetlib
@@ -16,32 +15,10 @@ import uuid
 import pefile
 import sqlite3
 import hashlib
-
-keymap = {
-    '-': 'minus',
-    '=': 'equal',
-    '[': 'bracket_left',
-    ']': 'bracket_right',
-    ';': 'semicolon',
-    '\'': 'apostrophe',
-    '\\': 'backslash',
-    ',': 'comma',
-    '.': 'dot',
-    '/': 'slash',
-    '*': 'asterisk',
-    ' ': 'spc',
-    '_': 'shift-minus',
-    '+': 'shift-equal',
-    '{': 'shift-bracket_left',
-    '}': 'shift-bracket_right',
-    ':': 'shift-semicolon',
-    '"': 'shift-apostrophe',
-    '|': 'shift-backslash',
-    '<': 'shift-comma',
-    '>': 'shift-dot',
-    '?': 'shift-slash',
-    '\n': 'ret',
-}
+import tempfile
+import atexit
+from mon_util import mon_cmd, guest_type
+import click_buttons
 
 def md5_for_file(fname, block_size=2**20):
     f = open(fname, 'rb')
@@ -55,18 +32,39 @@ def md5_for_file(fname, block_size=2**20):
     f.close()
     return digest
 
-def mon_cmd(s, mon):
-    mon.write(s)
-    logging.info(mon.read_until("(qemu)"))
+def cleanup():
+    # Move sample to the finished queue
+    logging.info("Moving sample into 'finished' queue.")
+    shutil.move(
+        sample_file,
+        os.path.join(queuedir, 'finished', sample_name)
+    )
 
-def guest_type(s, mon):
-    for c in s:
-        if c in string.ascii_uppercase:
-            key = 'shift-' + c.lower()
-        else:
-            key = keymap.get(c, c)
-        mon_cmd('sendkey {0}\n'.format(key), mon)
-        time.sleep(.1)
+    # Cleanup
+    os.unlink(qemu_socket)
+    os.unlink(iso_file)
+    os.unlink(new_qcow)
+    panda_stdout.close()
+    panda_stderr.close()
+
+    # Write to DB
+    conn = sqlite3.connect(database)
+    c = conn.cursor()
+    while True:
+        try:
+            c.execute('INSERT INTO samples VALUES(?,?,?)', (run_id, sample_name, sample_md5))
+            break
+        except sqlite3.OperationalError:
+            pass
+    c.close()
+    conn.commit()
+    conn.close()
+
+    # All done, write the stamp
+    stampfile = os.path.join(logdir, 'stamps', run_id)
+    open(stampfile, 'w').close()
+
+atexit.register(cleanup)
 
 conf = ConfigParser.ConfigParser()
 conf.read(sys.argv[1])
@@ -194,6 +192,14 @@ time.sleep(1)
 logging.info("Copying file to desktop.")
 guest_type(r"copy D:\{0} C:\Users\qemu\Desktop".format(sample_name) + '\n', mon)
 
+# Create our memory access socket
+qemu_socket = tempfile.mktemp()
+logging.info("Creating memory access socket: {0}".format(qemu_socket))
+mon_cmd("pmemaccess {0}\n".format(qemu_socket), mon)
+
+# Warm up the Volatility part
+click_buttons.setup("Win7SP1x64" if is_64bit else "Win7SP1x86", "qemu://" + qemu_socket)
+
 # Run the sample
 logging.info("Starting sample.")
 # Handle 3 cases: driver, exe, dll
@@ -210,7 +216,11 @@ else:
 
 # Wait
 logging.info("Sleeping for {0} seconds...".format(exec_time))
-time.sleep(exec_time)
+# Every 30 seconds, look for a button
+period = 10
+for _ in range(exec_time / period):
+    time.sleep(period)
+    click_buttons.click_buttons(mon)
 
 # End the record
 logging.info("Ending record.")
@@ -218,32 +228,3 @@ mon_cmd("end_record\n", mon)
 logging.info("Quitting PANDA.")
 mon.write("q\n")
 
-# Move sample to the finished queue
-logging.info("Moving sample into 'finished' queue.")
-shutil.move(
-    sample_file,
-    os.path.join(queuedir, 'finished', sample_name)
-)
-
-# Cleanup
-os.unlink(iso_file)
-os.unlink(new_qcow)
-panda_stdout.close()
-panda_stderr.close()
-
-# Write to DB
-conn = sqlite3.connect(database)
-c = conn.cursor()
-while True:
-    try:
-        c.execute('INSERT INTO samples VALUES(?,?,?)', (run_id, sample_name, sample_md5))
-        break
-    except sqlite3.OperationalError:
-        pass
-c.close()
-conn.commit()
-conn.close()
-
-# All done, write the stamp
-stampfile = os.path.join(logdir, 'stamps', run_id)
-open(stampfile, 'w').close()
