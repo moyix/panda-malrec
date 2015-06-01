@@ -53,6 +53,9 @@ https://github.com/moyix/panda/tree/wip/unsafememaccess
 And then symlink the `pmemaddressspace.py` script into Volatility's
 `volatility/plugins/addrspaces` subdirectory.
 
+Note that you will get poor results unless you disable mouse
+acceleration in the guest VMs.
+
 Disclaimer
 ----------
 
